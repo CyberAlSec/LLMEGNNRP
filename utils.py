@@ -19,7 +19,7 @@ import scipy.sparse as sp
 from data_utils.load import load_data
 FeatureMap = {
     "E5": ["infloat/e5-large",1024],
-    "TAPE":['microsoft/deberta-base',768],
+    "TAPE":['/home/mayuhang/文档/LLMEGNNRP/model/deberta-base',768],
     "ModernBert": ['answerdotai/ModernBERT-large',1024],
     "Linq": ["Linq-AI-Research/Linq-Embed-Mistral",None],
     "Llama":["meta-llama/Llama-2-7b-hf",None]
@@ -48,6 +48,57 @@ def torch_sparse_tensor_to_sparse_mx(torch_sparse):
 
 def get_model_name(feature):
     return FeatureMap[feature][0],FeatureMap[feature][1]
+
+def add_loop_sparse(adj, fill_value=1):
+    # make identify sparse tensor
+    row = torch.range(0, int(adj.shape[0]-1), dtype=torch.int64)
+    i = torch.stack((row, row), dim=0)
+    v = torch.ones(adj.shape[0], dtype=torch.float32)
+    shape = adj.shape
+    I_n = torch.sparse.FloatTensor(i, v, shape)
+    return adj + I_n
+import torch
+
+def dedup_edge_index(edge_index: torch.Tensor,
+                     undirected: bool = True,
+                     remove_self_loops: bool = False) -> torch.Tensor:
+    """
+    对 edge_index ([2, E]) 去重，确保每条边只出现一次。
+    如果 undirected=True，则 (u,v) 与 (v,u) 视为同一条边。
+
+    返回:
+      去重后的 edge_index ([2, E'])
+    """
+    assert edge_index.dim() == 2 and edge_index.size(0) == 2, \
+        "edge_index must be shape [2, E]"
+
+    src, dst = edge_index[0], edge_index[1]
+
+    if undirected:
+        # 把 (u,v) 无向归一化为 (min,max)
+        a = torch.minimum(src, dst)
+        b = torch.maximum(src, dst)
+        pairs = torch.stack([a, b], dim=1)  # [E,2]
+    else:
+        pairs = torch.stack([src, dst], dim=1)
+
+    # 去重
+    pairs = torch.unique(pairs, dim=0)
+
+    # 可选：移除自环
+    if remove_self_loops:
+        mask = pairs[:, 0] != pairs[:, 1]
+        pairs = pairs[mask]
+
+    if undirected:
+        # 为了返回完整的无向 edge_index（即包含双向边）
+        rev = pairs[:, [1, 0]]
+        pairs = torch.cat([pairs, rev], dim=0)
+
+    # 转置为 [2, E']
+    edge_index_dedup = pairs.t().contiguous()
+    return edge_index_dedup
+
 
 class Evaluator:
     def __init__(self, name):

@@ -2,7 +2,7 @@ Usage
 
 All examples assume the virtual environment is activated and all required packages are installed. 
 
-Due to storage limitations, only the processed Cora dataset is currently available in the data/ directory. Processed versions of other datasets will be uploaded to Google Drive upon
+Due to storage limitations, only the processed Cora dataset is currently available in the data/ directory. Processed versions of other datasets will be uploaded to Google Drive https://drive.google.com/drive/folders/12_rlEDxaYgYFdX1kmNvze-yx9isxD0Wa?usp=drive_link upon
 publication. Unzip `gpt_responses.zip` in the `data/TAPE/` directory.
 
 The TAPE results enhanced with LLM features are stored in `data/TAPE/` (please unzip `gpt_responses.zip`).

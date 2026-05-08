@@ -12,7 +12,7 @@ from torch_sparse import coalesce, SparseTensor, matmul
 class GCN(BaseModel):
 
     def __init__(self, nfeat, nhid, nclass,use_pred, nlayers=2, dropout=0.5, lr=0.01,
-                with_bn=True, weight_decay=5e-4, with_bias=True, device=None):
+                with_bn=True, weight_decay=5e-4, with_bias=True,drop=False, device=None,attention=False):
 
         super(GCN, self).__init__()
         
@@ -22,7 +22,8 @@ class GCN(BaseModel):
 
         assert device is not None, "Please specify 'device'!"
         self.device = device
-
+        self.drop = drop
+        self.attention = attention
         self.convs = nn.ModuleList([])
         if with_bn:
             self.bns = nn.ModuleList()
@@ -53,11 +54,18 @@ class GCN(BaseModel):
             x = self.encoder(x)
             x = torch.flatten(x, start_dim=1)
         for i, conv in enumerate(self.convs[:-1]):
+            if self.attention:
+                adj_t = self.att_coef(x,adj_t,i=0)
             x = conv(x, adj_t)
             x = self.bns[i](x)
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.convs[-1](x, adj_t)
+        if self.attention:
+            edge_index2 = self.att_coef(x, adj_t, i=1)
+            adj_t = torch.stack([edge_index2.storage.row(),edge_index2.storage.col()],dim=0)
+            edge_weight = edge_index2.storage.value()
+
+        x = self.convs[-1](x, adj_t,edge_weight=edge_weight)
         return F.log_softmax(x,dim=1)
         # return x
 
@@ -109,4 +117,3 @@ if __name__ == "__main__":
 
     model.fit(pyg_data, verbose=True) # train with earlystopping
     model.test()
-    print(model.predict())
